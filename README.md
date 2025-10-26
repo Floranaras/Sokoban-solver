@@ -4,7 +4,7 @@ A Sokoban puzzle solver with Java GUI and Rust solver backend. The system uses G
 
 ## Demo
 
-[Video demonstration](docs/demo.mov)
+[Video demonstration](docs/demo.gif)
 
 ## System Requirements
 
