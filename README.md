@@ -44,7 +44,7 @@ chmod +x rust_solver
 
 **Parameters:**
 - `map_name`: Name of map file in `maps/` directory (without `.txt` extension)
-- `mode`: Either `fp` (free play) or `bot` (automated solver)
+- `mode`: Either `fp` (free play) or `bot`  (automated solver)
 
 **Examples:**
 ```bash
