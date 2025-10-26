@@ -148,7 +148,7 @@ Sokoban-solver/
 **main.rs**
 - Standalone executable solver
 - Reads puzzle from file path argument
-- Outputs solution string (e.g., "udlrr")
+- Outputs solution string  (e.g., "udlrr")
 - Optimized for performance
 
 ## Algorithm Details
