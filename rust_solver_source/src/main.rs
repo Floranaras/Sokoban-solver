@@ -256,6 +256,32 @@ impl SokobanSolver {
         }
     }
 
+    #[inline(always)]
+    fn is_solved_boxes(&self, boxes: &[Point]) -> bool {
+        for &b in boxes {
+            let idx = self.to_idx(b.row, b.col);
+            if (self.goal_grid[idx / 64] & (1u64 << (idx % 64))) == 0 {
+                return false;
+            }
+        }
+        true
+    }
+
+    #[inline(always)]
+    fn boxes_zobrist_key(&self, boxes: &[Point]) -> u64 {
+        let mut key: u64 = 0;
+        for &b in boxes {
+            let idx = self.to_idx(b.row, b.col);
+            key ^= self.zobrist_table[idx][1];
+        }   
+        key
+    }
+
+    #[inline(always)]
+    fn find_goal_index(&self, row: i16, col: i16) -> Option<usize> {
+        self.goals.iter().position(|g| g.row == row && g.col == col)
+    }
+
     fn flood_fill_room(&mut self, start: Point, room_id: u8) -> i32 {
         let mut goal_count = 0;
         let mut queue = std::collections::VecDeque::with_capacity(100);
@@ -339,23 +365,24 @@ impl SokobanSolver {
         hash
     }
 
+
     fn calculate_heuristic(&self, boxes: &[Point]) -> i32 {
-        let temp_hash = boxes.iter().fold(0u64, |acc, b| acc ^ b.pack() as u64);
-        if let Some(cached) = self.tt.probe(temp_hash) {
+        let box_key = self.boxes_zobrist_key(boxes);
+        if let Some(cached) = self.tt.probe(box_key) {
             return cached;
         }
 
         let mut total_dist = 0;
-        let mut used_goals = ArrayVec::<bool, 32>::new();
-        for _ in 0..self.goals.len() {
-            used_goals.push(false);
-        }
+        let mut used_goal_mask: u64 = 0; // bitmask instead of ArrayVec<bool,32>
         let mut boxes_on_goals = 0;
 
         for &box_pos in boxes {
             let idx = self.to_idx(box_pos.row, box_pos.col);
+
             if (self.goal_grid[idx / 64] & (1u64 << (idx % 64))) != 0 {
-                self.mark_goal_as_matched(&mut used_goals, box_pos.row, box_pos.col);
+                if let Some(goal_index) = self.find_goal_index(box_pos.row, box_pos.col) {
+                    used_goal_mask |= 1u64 << goal_index;
+                }
                 boxes_on_goals += 1;
                 continue;
             }
@@ -365,20 +392,21 @@ impl SokobanSolver {
             }
 
             let mut min_dist = i32::MAX;
-            let mut best_idx = 0;
+            let mut best_idx: Option<usize> = None;
 
             for (i, goal) in self.goals.iter().enumerate() {
-                if !used_goals[i] {
-                    let dist = (box_pos.row - goal.row).abs() as i32 + (box_pos.col - goal.col).abs() as i32;
+                if (used_goal_mask & (1u64 << i)) == 0 {
+                    let dist = (box_pos.row - goal.row).abs() as i32
+                        + (box_pos.col - goal.col).abs() as i32;
                     if dist < min_dist {
                         min_dist = dist;
-                        best_idx = i;
+                        best_idx = Some(i);
                     }
                 }
             }
 
-            if min_dist != i32::MAX {
-                used_goals[best_idx] = true;
+            if let Some(i) = best_idx {
+                used_goal_mask |= 1u64 << i;
                 total_dist += min_dist;
             }
         }
@@ -464,11 +492,8 @@ impl SokobanSolver {
 
         open_set.push(start_state);
 
-        let goal_set: FxHashSet<Point> = self.goals.iter().copied().collect();
-
         while let Some(current) = open_set.pop() {
-            let current_box_set: FxHashSet<Point> = current.boxes.iter().copied().collect();
-            if current_box_set == goal_set {
+            if self.is_solved_boxes(&current.boxes) {
                 return current.path.iter().map(|&dir| DIR_CHARS[dir as usize]).collect();
             }
 
